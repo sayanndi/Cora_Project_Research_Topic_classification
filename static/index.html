@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cora GCN Explorer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div class="grid-backdrop" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <div class="topbar__brand">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 32 32" width="22" height="22">
+          <circle cx="6" cy="8" r="3.2" fill="var(--c-amber)"/>
+          <circle cx="26" cy="6" r="3.2" fill="var(--c-blue)"/>
+          <circle cx="24" cy="24" r="3.2" fill="var(--c-teal)"/>
+          <circle cx="8" cy="24" r="3.2" fill="var(--c-rose)"/>
+          <line x1="6" y1="8" x2="26" y2="6" stroke="var(--border-bright)" stroke-width="1"/>
+          <line x1="6" y1="8" x2="24" y2="24" stroke="var(--border-bright)" stroke-width="1"/>
+          <line x1="26" y1="6" x2="24" y2="24" stroke="var(--border-bright)" stroke-width="1"/>
+          <line x1="8" y1="24" x2="24" y2="24" stroke="var(--border-bright)" stroke-width="1"/>
+        </svg>
+      </span>
+      <div>
+        <h1>Cora GCN Explorer</h1>
+        <p class="brand-sub">Node classification over the Cora citation graph</p>
+      </div>
+    </div>
+
+    <div class="topbar__controls">
+      <label class="endpoint-field">
+        <span>API base URL</span>
+        <input type="text" id="baseUrlInput" value="http://127.0.0.1:8000" spellcheck="false" autocomplete="off">
+      </label>
+      <button id="connectBtn" class="btn btn--ghost">Connect</button>
+      <div id="statusPill" class="status-pill status-pill--pending">
+        <span class="status-dot"></span>
+        <span class="status-text">Not connected</span>
+      </div>
+    </div>
+  </header>
+
+  <main>
+
+    <!-- ===== HERO ===== -->
+    <section class="hero">
+      <div class="hero__text">
+        <p class="eyebrow">7-way topic classifier &middot; SimpleGCN &middot; ONNX runtime</p>
+        <h2>Every paper in Cora cites its way<br>into one of seven fields.</h2>
+        <p class="hero__body">
+          This model reads a paper's 1,433-dimension bag-of-words vector alongside
+          its citation edges, and predicts which of seven machine-learning subfields
+          it belongs to. Pick a real paper from the dataset, or hand the network a
+          graph of your own, and watch the classifier light up the nodes below.
+        </p>
+        <div class="hero__actions">
+          <a href="#predict" class="btn btn--primary">Classify a node</a>
+          <a href="#model-info" class="btn btn--ghost">Inspect the model</a>
+        </div>
+      </div>
+
+      <div class="hero__graph">
+        <canvas id="graphCanvas"></canvas>
+        <div class="hero__graph-caption">
+          Live view &mdash; colors update with your last prediction
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== MODEL INFO ===== -->
+    <section id="model-info" class="panel">
+      <div class="panel__head">
+        <h3>Model</h3>
+        <button id="refreshModelInfo" class="btn btn--small">Refresh</button>
+      </div>
+
+      <div class="model-grid">
+        <div class="model-stat">
+          <span class="model-stat__value" id="statFeatureDim">&mdash;</span>
+          <span class="model-stat__label">input features per node</span>
+        </div>
+        <div class="model-stat">
+          <span class="model-stat__value" id="statNumClasses">&mdash;</span>
+          <span class="model-stat__label">topic classes</span>
+        </div>
+        <div class="model-stat">
+          <span class="model-stat__value" id="statProvider">&mdash;</span>
+          <span class="model-stat__label">execution provider</span>
+        </div>
+      </div>
+
+      <div class="legend" id="classLegend">
+        <!-- filled by JS: 7 topic classes with color swatches -->
+      </div>
+
+      <details class="io-details">
+        <summary>Raw input / output signature</summary>
+        <pre id="ioSchema" class="mono-block">Connect to load model_info&hellip;</pre>
+      </details>
+    </section>
+
+    <!-- ===== PREDICT ===== -->
+    <section id="predict" class="panel">
+      <div class="panel__head">
+        <h3>Classify</h3>
+        <div class="tabs" role="tablist">
+          <button class="tab tab--active" data-tab="cora" role="tab" aria-selected="true">By node index</button>
+          <button class="tab" data-tab="custom" role="tab" aria-selected="false">Custom graph</button>
+        </div>
+      </div>
+
+      <!-- Tab: real Cora nodes -->
+      <div class="tab-panel tab-panel--active" data-panel="cora">
+        <p class="panel__hint">
+          Enter one or more node indices from the real, on-disk Cora dataset
+          (<code>POST /predict/cora_node</code>). The server loads the full graph
+          and returns predictions for just the nodes you ask for.
+        </p>
+        <label class="field">
+          <span>Node indices <em>(comma separated)</em></span>
+          <input type="text" id="coraIndicesInput" value="0, 1, 2, 42" spellcheck="false">
+        </label>
+        <button id="predictCoraBtn" class="btn btn--primary">Run classification</button>
+      </div>
+
+      <!-- Tab: custom graph -->
+      <div class="tab-panel" data-panel="custom">
+        <p class="panel__hint">
+          Supply your own node feature vectors (1,433 values each) and, optionally,
+          the edges connecting them (<code>GET /predict</code>). Use the generator
+          to try it with random placeholder features first.
+        </p>
+
+        <div class="field-row">
+          <label class="field field--small">
+            <span>Node count</span>
+            <input type="number" id="genNodeCount" value="4" min="1" max="50">
+          </label>
+          <button id="generateBtn" class="btn btn--ghost btn--small">Generate random graph</button>
+        </div>
+
+        <label class="field">
+          <span>node_features <em>(JSON array of arrays)</em></span>
+          <textarea id="customFeaturesInput" rows="4" spellcheck="false" placeholder="[[0, 0, 1, &hellip;], [0, 1, 0, &hellip;]]"></textarea>
+        </label>
+
+        <label class="field">
+          <span>edge_indices <em>(optional &mdash; JSON, shape [2, num_edges])</em></span>
+          <textarea id="customEdgesInput" rows="2" spellcheck="false" placeholder="[[0, 1], [1, 0]]"></textarea>
+        </label>
+
+        <button id="predictCustomBtn" class="btn btn--primary">Run classification</button>
+      </div>
+    </section>
+
+    <!-- ===== RESULTS ===== -->
+    <section id="results" class="panel">
+      <div class="panel__head">
+        <h3>Predictions</h3>
+        <span id="resultsMeta" class="panel__meta"></span>
+      </div>
+      <div id="resultsEmpty" class="empty-state">
+        No predictions yet. Run a classification above &mdash; results will
+        appear here and the nodes in the graph will take on their predicted colors.
+      </div>
+      <div id="resultsList" class="results-list"></div>
+    </section>
+
+  </main>
+
+  <footer class="footer">
+    <span>Cora GCN Explorer &mdash; a UI over the SimpleGCN inference API</span>
+    <span id="footerLog" class="footer__log"></span>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
